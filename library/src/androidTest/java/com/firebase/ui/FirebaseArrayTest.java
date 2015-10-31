@@ -101,6 +101,32 @@ public class FirebaseArrayTest extends AndroidTestCase {
         });
     }
 
+    @Test
+    public void testReverseArray() throws Exception {
+        runAndWaitUntil(mArray, mRef, new Runnable() {
+            public void run() {
+                mArray.reverse();
+            }
+        }, new Callable<Boolean>() {
+            public Boolean call() throws Exception {
+                return isValuesEqual(mArray, new int[]{3, 2, 1});
+            }
+        });
+    }
+
+    @Test
+    public void testSortArray() throws Exception {
+        runAndWaitUntil(mArray, mRef, new Runnable() {
+            public void run() {
+                mArray.sortBy("value", FirebaseArray.Order.Descending, Integer.class);
+            }
+        }, new Callable<Boolean>() {
+            public Boolean call() throws Exception {
+                return isValuesEqual(mArray, new int[]{3, 2, 1});
+            }
+        });
+    }
+
     private static boolean isValuesEqual(FirebaseArray array, int[] expected) {
         if (array.getCount() != expected.length) return false;
         for (int i=0; i < array.getCount(); i++) {

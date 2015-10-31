@@ -29,16 +29,20 @@
 package com.firebase.ui;
 
 import com.firebase.client.*;
+import com.firebase.client.core.utilities.Predicate;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 
 /**
  * This class implements an array-like collection on top of a Firebase location.
  */
 class FirebaseArray implements ChildEventListener {
+    public enum Order { Ascending, Descending }
+
     public interface OnChangedListener {
-        enum EventType { Added, Changed, Removed, Moved }
+        enum EventType { Added, Changed, Removed, Moved, All }
         void onChanged(EventType type, int index, int oldIndex);
     }
 
@@ -66,8 +70,8 @@ class FirebaseArray implements ChildEventListener {
 
     private int getIndexForKey(String key) {
         int index = 0;
-        for (DataSnapshot snapshot : mSnapshots) {
-            if (snapshot.getKey().equals(key)) {
+        for (int i = 0; i < mSnapshots.size(); i++) {
+            if (mSnapshots.get(i).getKey().equals(key)) {
                 return index;
             } else {
                 index++;
@@ -77,35 +81,59 @@ class FirebaseArray implements ChildEventListener {
     }
 
     // Start of ChildEventListener methods
+    @Override
     public void onChildAdded(DataSnapshot snapshot, String previousChildKey) {
+        // TODO if sorted, we need to add in a sorted place...right?
         int index = 0;
-        if (previousChildKey != null) {
+
+        if (mPredicate != null) {
+           if (mPredicate.evaluate(snapshot)) {
+               // Don't add.
+               // TODO do in changed method too
+               return;
+           }
+        }
+
+        if (mComparator != null) {
+            index = Collections.binarySearch(mSnapshots, snapshot, mComparator);
+            if (index < 0) {
+                index = (index + 1) * -1;
+            }
+        }
+        else if (previousChildKey != null) {
             index = getIndexForKey(previousChildKey) + 1;
         }
         mSnapshots.add(index, snapshot);
         notifyChangedListeners(OnChangedListener.EventType.Added, index);
     }
 
+    @Override
     public void onChildChanged(DataSnapshot snapshot, String previousChildKey) {
         int index = getIndexForKey(snapshot.getKey());
         mSnapshots.set(index, snapshot);
+        Collections.sort(mSnapshots, mComparator);
         notifyChangedListeners(OnChangedListener.EventType.Changed, index);
     }
 
+    @Override
     public void onChildRemoved(DataSnapshot snapshot) {
         int index = getIndexForKey(snapshot.getKey());
         mSnapshots.remove(index);
         notifyChangedListeners(OnChangedListener.EventType.Removed, index);
     }
 
+    @Override
     public void onChildMoved(DataSnapshot snapshot, String previousChildKey) {
+        // TODO if sorted we don't care
         int oldIndex = getIndexForKey(snapshot.getKey());
         mSnapshots.remove(oldIndex);
         int newIndex = previousChildKey == null ? 0 : (getIndexForKey(previousChildKey) + 1);
         mSnapshots.add(newIndex, snapshot);
+        Collections.sort(mSnapshots, mComparator);
         notifyChangedListeners(OnChangedListener.EventType.Moved, newIndex, oldIndex);
     }
 
+    @Override
     public void onCancelled(FirebaseError firebaseError) {
         // TODO: what do we do with this?
     }
@@ -121,5 +149,54 @@ class FirebaseArray implements ChildEventListener {
         if (mListener != null) {
             mListener.onChanged(type, index, oldIndex);
         }
+    }
+
+    // TODO protected?
+    protected void reverse() {
+        mOrder = Order.Descending;
+        if (mComparator == null) {
+            Collections.reverse(mSnapshots);
+        } else {
+            Collections.sort(mSnapshots, mComparator);
+        }
+        notifyChangedListeners(OnChangedListener.EventType.All, 0);
+    }
+
+    private Comparator<DataSnapshot> mComparator;
+    private Predicate<DataSnapshot> mPredicate;
+    private Order mOrder;
+
+    protected void sortBy(final String key, final Order order, final Class<? extends Comparable> valueType) {
+        mOrder = order;
+        mComparator = new Comparator<DataSnapshot>() {
+            @Override
+            public int compare(DataSnapshot data1, DataSnapshot data2) {
+                if (data1.hasChild(key) && data2.hasChild(key)) {
+                    Comparable value1 = data1.child(key).getValue(valueType);
+                    Comparable value2 = data2.child(key).getValue(valueType);
+                    if (mOrder == Order.Ascending) {
+                        return value1.compareTo(value2);
+                    } else {
+                        return value2.compareTo(value1);
+                    }
+                }
+                System.err.println(
+                        "Key " + key + " was not found in datasnapshot " + data1 + " or " + data2);
+                return 0;
+            }
+        };
+        Collections.sort(mSnapshots, mComparator);
+        notifyChangedListeners(OnChangedListener.EventType.All, 0);
+    }
+
+    public void filter(Predicate<DataSnapshot> predicate) {
+        // there's probably a one liner to do this... I'm looking at you, Guava
+        mPredicate = predicate;
+        for (int i = 0; i < mSnapshots.size(); i++) {
+            if (predicate.evaluate(mSnapshots.get(i))) {
+                mSnapshots.remove(i);
+            }
+        }
+        notifyChangedListeners(OnChangedListener.EventType.All, 0);
     }
 }

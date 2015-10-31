@@ -33,8 +33,10 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
+import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.Query;
+import com.firebase.client.core.utilities.Predicate;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -116,6 +118,9 @@ public abstract class FirebaseRecyclerViewAdapter<T, VH extends RecyclerView.Vie
                         break;
                     case Moved:
                         notifyItemMoved(oldIndex, index);
+                        break;
+                    case All:
+                        notifyDataSetChanged();
                         break;
                     default:
                         throw new IllegalStateException("Incomplete case statement");
@@ -209,5 +214,22 @@ public abstract class FirebaseRecyclerViewAdapter<T, VH extends RecyclerView.Vie
      */
     protected void populateViewHolder(VH viewHolder, T model) {
     };
+
+    public void reverse() {
+        mSnapshots.reverse();
+    }
+
+    public void sortBy(String key, Class<? extends Comparable> valueType) {
+        // TODO confirm correct default
+        sortBy(key, FirebaseArray.Order.Ascending, valueType);
+    }
+
+    public void sortBy(String key, FirebaseArray.Order order, Class<? extends Comparable> valueType) {
+        mSnapshots.sortBy(key, order, valueType);
+    }
+
+    public void filter(Predicate<DataSnapshot> predicate) {
+        mSnapshots.filter(predicate);
+    }
 
 }

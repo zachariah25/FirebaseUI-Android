@@ -12,12 +12,16 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
+import com.firebase.client.DataSnapshot;
 import com.firebase.client.Firebase;
 import com.firebase.client.FirebaseError;
+import com.firebase.client.core.utilities.Predicate;
 import com.firebase.ui.FirebaseRecyclerViewAdapter;
 
 
 public class RecyclerViewDemoActivity extends AppCompatActivity {
+    private FirebaseRecyclerViewAdapter<Chat, ChatHolder> adapter;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -48,7 +52,8 @@ public class RecyclerViewDemoActivity extends AppCompatActivity {
             }
         });
 
-        FirebaseRecyclerViewAdapter<Chat, ChatHolder> adapter = new FirebaseRecyclerViewAdapter<Chat, ChatHolder>(Chat.class, android.R.layout.two_line_list_item, ChatHolder.class, ref) {
+        adapter = new FirebaseRecyclerViewAdapter<Chat, ChatHolder>
+                (Chat.class, android.R.layout.two_line_list_item, ChatHolder.class, ref) {
             @Override
             public void populateViewHolder(ChatHolder chatView, Chat chat) {
                 chatView.textView.setText(chat.getText());
@@ -65,6 +70,13 @@ public class RecyclerViewDemoActivity extends AppCompatActivity {
             }
         };
 
+        adapter.sortBy("text", String.class);
+        adapter.filter(new Predicate<DataSnapshot>() {
+            @Override
+            public boolean evaluate(DataSnapshot dataSnapshot) {
+                return dataSnapshot.getValue(Chat.class).getText().contains(" ");
+            }
+        });
         messages.setAdapter(adapter);
     }
 
